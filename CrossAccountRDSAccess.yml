@@ -1,6 +1,3 @@
-#Copyright 2022 Amazon.com and its affiliates; all rights reserved. This file is AWS Content and may not be duplicated or distributed without permission.
-# https://aws.amazon.com/agreement
-# SPDX-License-Identifier: MIT-0
 
 AWSTemplateFormatVersion: '2010-09-09'
 Description: 'This CloudFormation Template (CFT) will create all the required AWS components to establish database connectivity across AWS Accounts or VPCs, 
@@ -26,7 +23,7 @@ Metadata:
         - pVPCid         
         - pSubnetsGroup
         - pSecurityGroup
-        - pTargetRoleARN
+        #- pTargetRoleARN
 
     ParameterLabels: 
       pRDSType:
@@ -43,8 +40,8 @@ Metadata:
         default: "Select Subnets"
       pSecurityGroup: 
         default: "Select Security Group for Lambda"
-      pTargetRoleARN:
-        default: "Provide Role ARN of target Account/VPC"
+      # pTargetRoleARN:
+      #   default: "Provide Role ARN of target Account/VPC"
         
         
 ## ============================
@@ -57,10 +54,10 @@ Parameters:
     Type: List<AWS::EC2::Subnet::Id>      
   pSecurityGroup:
     Type: AWS::EC2::SecurityGroup::Id
-  pTargetRoleARN:
-    Type: String
-    MinLength: '1'
-    MaxLength: '256'
+  # pTargetRoleARN:
+  #   Type: String
+  #   MinLength: '1'
+  #   MaxLength: '256'
 
   pRDSType:
     AllowedValues:
@@ -154,7 +151,7 @@ Resources:
        Variables: 
          Cluster_EndPoint: !Ref pDBEndPoint
          RDS_Port: !Ref pRDSPOrt
-         NLB_TG_ARN: !Ref rNetworkLoadBalancerTargetGroup
+         NLB_TG_ARN: arn:aws:elasticloadbalancing:us-east-1:808186499947:targetgroup/dbinstanceip/0ac7aadb37f28797
      Code:
        ZipFile: |
         import os
@@ -303,55 +300,55 @@ Resources:
       Principal: sns.amazonaws.com
       SourceArn: !Ref rLambdaTriggerTopic
 
- rNetworkLoadBalancer:
-   Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-   Properties:
-     Name: !Sub 'NLB-RDS-${AWS::StackName}'
-     Scheme: internal
-     Subnets: !Ref pSubnetsGroup
-     Type: network
+#  rNetworkLoadBalancer:
+#    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+#    Properties:
+#      Name: !Sub 'NLB-RDS-${AWS::StackName}'
+#      Scheme: internal
+#      Subnets: !Ref pSubnetsGroup
+#      Type: network
      
- rNetworkLoadBalancerTargetGroup:
-   Type: AWS::ElasticLoadBalancingV2::TargetGroup
-   Properties:
-     Name: !Sub 'NLB-TG-RDS-${AWS::StackName}'
-     Port: !Ref pRDSPOrt
-     TargetType: ip
-     Protocol: TCP
-     VpcId: !Select [0, !Ref pVPCid]
-     HealthCheckEnabled: True
-     HealthCheckIntervalSeconds: 10
-     HealthCheckPort: !Ref pRDSPOrt
-     HealthCheckProtocol: TCP
-     HealthCheckTimeoutSeconds: 10
-     HealthyThresholdCount: 3
-     TargetGroupAttributes:
-       - Key: deregistration_delay.timeout_seconds
-         Value: 0
+#  rNetworkLoadBalancerTargetGroup:
+#    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+#    Properties:
+#      Name: !Sub 'NLB-TG-RDS-${AWS::StackName}'
+#      Port: !Ref pRDSPOrt
+#      TargetType: ip
+#      Protocol: TCP
+#      VpcId: !Select [0, !Ref pVPCid]
+#      HealthCheckEnabled: True
+#      HealthCheckIntervalSeconds: 10
+#      HealthCheckPort: !Ref pRDSPOrt
+#      HealthCheckProtocol: TCP
+#      HealthCheckTimeoutSeconds: 10
+#      HealthyThresholdCount: 3
+#      TargetGroupAttributes:
+#        - Key: deregistration_delay.timeout_seconds
+#          Value: 0
      
- rNetworkLoadBalancerListener:
-   Type: AWS::ElasticLoadBalancingV2::Listener
-   Properties:
-     DefaultActions:
-       - Type: forward
-         TargetGroupArn: !Ref rNetworkLoadBalancerTargetGroup
-     LoadBalancerArn: !Ref rNetworkLoadBalancer
-     Port: !Ref pRDSPOrt
-     Protocol: TCP
+#  rNetworkLoadBalancerListener:
+#    Type: AWS::ElasticLoadBalancingV2::Listener
+#    Properties:
+#      DefaultActions:
+#        - Type: forward
+#          TargetGroupArn: !Ref rNetworkLoadBalancerTargetGroup
+#      LoadBalancerArn: !Ref rNetworkLoadBalancer
+#      Port: !Ref pRDSPOrt
+#      Protocol: TCP
      
- rVPCEndpointService:    
-   Type: AWS::EC2::VPCEndpointService
-   Properties: 
-     AcceptanceRequired: no
-     NetworkLoadBalancerArns: 
-       - !Ref rNetworkLoadBalancer 
+#  rVPCEndpointService:    
+#    Type: AWS::EC2::VPCEndpointService
+#    Properties: 
+#      AcceptanceRequired: no
+#      NetworkLoadBalancerArns: 
+#        - !Ref rNetworkLoadBalancer 
         
- rVPCEndpointServicePermission:  
-   Type: AWS::EC2::VPCEndpointServicePermissions
-   Properties: 
-     AllowedPrincipals: 
-       - !Ref pTargetRoleARN
-     ServiceId: !Ref rVPCEndpointService        
+#  rVPCEndpointServicePermission:  
+#    Type: AWS::EC2::VPCEndpointServicePermissions
+#    Properties: 
+#      AllowedPrincipals: 
+#        - !Ref pTargetRoleARN
+#      ServiceId: !Ref rVPCEndpointService        
       
 ## Output Section
 ## ========================
@@ -385,6 +382,6 @@ Outputs:
     Description: 'Lambda Invoke Permission'
     Value: !Ref rSnsLambdaInvokePermission 
     
-  oVPCEndpointService:
-    Description: 'VPC Endpoint Servie'
-    Value: !Ref rVPCEndpointService     
+  # oVPCEndpointService:
+  #   Description: 'VPC Endpoint Servie'
+  #   Value: !Ref rVPCEndpointService     
