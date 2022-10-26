@@ -1,27 +1,10 @@
+
 AWSTemplateFormatVersion: '2010-09-09'
-Description: ''
+Description: ''      
 ## ============================
 ## ==== Parameter Assignment===
+
 Parameters:
-  awsAcct:
-    Type: String
-    Description: "AWS Account Number"
-    Default: "335594817550"
-
-  pVPCid:
-    Type: String
-    Description: "VPC Id"
-    Default: "vpc-064adfdf4fc98a417"
-
-  pSubnetsGroup:
-    Type: CommaDelimitedList
-    Description: "Subnet Id for PrivateSubnet0"
-    Default: "subnet-001b5c60c3618121c, subnet-0d661cb50f5ece38d"
-        
-  pSecurityGroup:
-    Type: String
-    Description: "Inbound access on Postgres from Deere internal network"
-    Default: "sg-007a1675e982420b9"
 
   pRDSType:
     AllowedValues:
@@ -37,8 +20,6 @@ Parameters:
     MaxLength: '128'
     AllowedPattern: '^[a-zA-Z]+[0-9a-zA-Z\-]*$'
 
-  ###### Env Var for lambda function need to put DB end point and NLB TG arn #####
-
   pRDSPOrt:
     Type: Number
     Default: 5432
@@ -47,38 +28,38 @@ Parameters:
 
   pDBEndPoint: 
     Type: String
-    Default: "database-1.c9dmc1iavuno.us-east-1.rds.amazonaws.com"
-    MinLength: '1'
-    MaxLength: '128'
+    Default: "database-1.cjfudpnepywm.us-east-1.rds.amazonaws.com"
 
-  # rNetworkLoadBalancerTargetGroup:
-  #    Type: String
-  #    Default: ""
+  pRoleARN:
+    Type: String
+    Default: "arn:aws:iam::863404411791:role/UpdateNLBIpRole-my-new-stack"
+
+  pNetworkLoadBalancerTargetGroup:
+    Type: String
+    Default: "arn:aws:elasticloadbalancing:us-east-1:863404411791:targetgroup/NLB-TG-RDS-my-new-stack1/2b89f9b75e947872"
+
 
 ## =====================================
 ##======================================
 Resources:
+
 ## ======= Create lambda ==========
  rLambdaNLBUpdate:
    Type: AWS::Lambda::Function
    Properties:
-     VpcConfig:
-       SecurityGroupIds: 
-       - !Ref pSecurityGroup
-       SubnetIds: !Ref pSubnetsGroup
      FunctionName: !Join 
                     - ''
                     - - !Ref pLambdaName
                       - '-'
                       - !Sub ${AWS::StackName}
      Runtime: python3.9
-     Role: !Join [":", ["arn:aws:iam:" , !Ref awsAcct , "role/UpdateNLBIpRole-demonewstack"]]
+     Role: !Ref pRoleARN
      Handler: index.lambda_handler
      Environment:
        Variables: 
          Cluster_EndPoint: !Ref pDBEndPoint
          RDS_Port: !Ref pRDSPOrt
-         NLB_TG_ARN: !Ref rNetworkLoadBalancerTargetGroup
+         NLB_TG_ARN: !Ref pNetworkLoadBalancerTargetGroup
      Code:
        ZipFile: |
         import os
@@ -161,6 +142,7 @@ Resources:
                 if vOldIp in DeRegisterIP:
                     print('DeRegister IP: ', vOldIp, 'Port; ', vOldPort, 'AZ: ', vOldAZ)
                     deregister_oldip(vOldIp, vOldPort, vOldAZ)
+                    print('End of the code ')
 
      Description: "Lambda function to update NLB target group IP address"
      TracingConfig:
@@ -227,43 +209,9 @@ Resources:
       Principal: sns.amazonaws.com
       SourceArn: !Ref rLambdaTriggerTopic
 
- rNetworkLoadBalancer:
-   Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-   Properties:
-     Name: !Sub 'NLB-RDS-${AWS::StackName}'
-     Scheme: internal
-     Subnets: !Ref pSubnetsGroup
-     Type: network
-     
- rNetworkLoadBalancerTargetGroup:
-   Type: AWS::ElasticLoadBalancingV2::TargetGroup
-   Properties:
-     Name: !Sub 'NLB-TG-RDS-${AWS::StackName}'
-     Port: !Ref pRDSPOrt
-     TargetType: ip
-     Protocol: TCP
-     VpcId: !Select [0, !Ref pVPCid]
-     HealthCheckEnabled: True
-     HealthCheckIntervalSeconds: 10
-     HealthCheckPort: !Ref pRDSPOrt
-     HealthCheckProtocol: TCP
-     HealthCheckTimeoutSeconds: 10
-     HealthyThresholdCount: 3
-     TargetGroupAttributes:
-       - Key: deregistration_delay.timeout_seconds
-         Value: 0
-     
- rNetworkLoadBalancerListener:
-   Type: AWS::ElasticLoadBalancingV2::Listener
-   Properties:
-     DefaultActions:
-       - Type: forward
-         TargetGroupArn: !Ref rNetworkLoadBalancerTargetGroup
-     LoadBalancerArn: !Ref rNetworkLoadBalancer
-     Port: !Ref pRDSPOrt
-     Protocol: TCP
 
-
+# Output Section
+# ========================
 Outputs:
 
   oLambdaName:
@@ -280,12 +228,13 @@ Outputs:
  
   oLambdaTriggerSubscription:
     Description: 'SNS Topic subscription'
-    Value: !Ref rLambdaTriggerSubscription
+    Value: !Ref rLambdaTriggerSubscription         
 
   oEventSubscription:
     Description: 'RDS Event subscription'
-    Value: !Ref rEventSubscription
+    Value: !Ref rEventSubscription         
 
   oSnsLambdaInvokePermission:
     Description: 'Lambda Invoke Permission'
-    Value: !Ref rSnsLambdaInvokePermission
+    Value: !Ref rSnsLambdaInvokePermission 
+    
