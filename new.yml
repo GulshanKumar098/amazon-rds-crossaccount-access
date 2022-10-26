@@ -34,10 +34,24 @@ Parameters:
     Type: String
     Default: "arn:aws:iam::863404411791:role/UpdateNLBIpRole-my-new-stack"
 
-  pNetworkLoadBalancerTargetGroup:
-    Type: String
-    Default: "arn:aws:elasticloadbalancing:us-east-1:863404411791:targetgroup/NLB-TG-RDS-my-new-stack1/2b89f9b75e947872"
 
+    ####  Uncomment with existing infra ####
+  # pNetworkLoadBalancerTargetGroup:
+  #   Type: String
+  #   Default: "arn:aws:elasticloadbalancing:us-east-1:863404411791:targetgroup/NLB-TG-RDS-my-new-stack1/2b89f9b75e947872"
+
+  ##### Optional Only with new infra #######
+
+  pVPCid:
+    Type: String
+    Description: "VPC Id"
+    Default: "vpc-0f08a9784f9150b31"
+
+  pSubnetsGroup:
+    Type: CommaDelimitedList
+    Description: "Subnet Ids"
+    Default: "subnet-0d6216c714a89d7be, subnet-077e17272955f6c75, subnet-0b0fe412d5a268cdf, subnet-0f6a5be37c276fafe, subnet-01a5d27c3bc15cdd6, subnet-07524d714d4574526"
+      
 
 ## =====================================
 ##======================================
@@ -208,6 +222,46 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: sns.amazonaws.com
       SourceArn: !Ref rLambdaTriggerTopic
+
+
+############  Optinal in case new infra ##########
+
+ rNetworkLoadBalancer:
+   Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+   Properties:
+     Name: !Sub 'NLB-RDS-${AWS::StackName}'
+     Scheme: internal
+     Subnets: !Ref pSubnetsGroup
+     Type: network
+     
+ pNetworkLoadBalancerTargetGroup:
+   Type: AWS::ElasticLoadBalancingV2::TargetGroup
+   Properties:
+     Name: !Sub 'NLB-TG-RDS-${AWS::StackName}'
+     Port: !Ref pRDSPOrt
+     TargetType: ip
+     Protocol: TCP
+     VpcId: !Ref pVPCid
+     HealthCheckEnabled: True
+     HealthCheckIntervalSeconds: 10
+     HealthCheckPort: !Ref pRDSPOrt
+     HealthCheckProtocol: TCP
+     HealthCheckTimeoutSeconds: 10
+     HealthyThresholdCount: 3
+     TargetGroupAttributes:
+       - Key: deregistration_delay.timeout_seconds
+         Value: 0
+     
+ rNetworkLoadBalancerListener:
+   Type: AWS::ElasticLoadBalancingV2::Listener
+   Properties:
+     DefaultActions:
+       - Type: forward
+         TargetGroupArn: !Ref pNetworkLoadBalancerTargetGroup
+     LoadBalancerArn: !Ref rNetworkLoadBalancer
+     Port: !Ref pRDSPOrt
+     Protocol: TCP
+
 
 
 # Output Section
