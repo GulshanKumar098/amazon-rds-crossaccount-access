@@ -10,17 +10,17 @@ Parameters:
   pVPCid:
     Type: String
     Description: "VPC Id"
-    Default: "vpc-05b0f2f73946ca03e"
+    Default: "vpc-064adfdf4fc98a417"
 
   pSubnetsGroup:
-    Type: String
+    Type: CommaDelimitedList
     Description: "Subnet Id for PrivateSubnet0"
-    Default: "subnet-0dca378bcca0c9b2a"
+    Default: "subnet-001b5c60c3618121c, subnet-0d661cb50f5ece38d, subnet-083de05ef504bca81, subnet-0015614a29d20dad2, subnet-053dde501374abc88, subnet-02c2bd5cf2c1f98fd"
         
   pSecurityGroup:
     Type: String
     Description: "Inbound access on Postgres from Deere internal network"
-    Default: "sg-050aa6f9123c0f581"
+    Default: "sg-007a1675e982420b9"
 
   pRDSType:
     AllowedValues:
@@ -47,7 +47,7 @@ Parameters:
 
   pDBEndPoint: 
     Type: String
-    Default: ""
+    Default: "database-1.c9dmc1iavuno.us-east-1.rds.amazonaws.com"
     MinLength: '1'
     MaxLength: '128'
 
@@ -271,8 +271,13 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: sns.amazonaws.com
       SourceArn: !Ref rLambdaTriggerTopic
-
-      
+     
+#  rVPCEndpointService:    
+#    Type: AWS::EC2::VPCEndpointService
+#    Properties: 
+#      AcceptanceRequired: no
+#      NetworkLoadBalancerArns: 
+#        - !Ref rNetworkLoadBalancer 
       
 ## Output Section
 ## ========================
@@ -306,4 +311,6 @@ Outputs:
     Description: 'Lambda Invoke Permission'
     Value: !Ref rSnsLambdaInvokePermission 
     
-    
+  # oVPCEndpointService:
+  #   Description: 'VPC Endpoint Servie'
+  #   Value: !Ref rVPCEndpointService     

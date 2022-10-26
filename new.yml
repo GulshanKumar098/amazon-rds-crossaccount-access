@@ -1,63 +1,27 @@
-
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'This CloudFormation Template (CFT) will create all the required AWS components to establish database connectivity across AWS Accounts or VPCs, 
-              For example AWS Lambda function to synchronize IP address from RDS, RDS Proxy and Aurora Cluster to Amazon Network Load Balancer Target group.
-              You will need to supply Stack Name, a Lambda Function name, RDS or Aurora Name, select the type of service, IAM Role ARN, 
-              Endpoint of RDS/RDS Proxy or Aurora Cluster and respective port number, NLB Target group ARN, private Subnet groups and security group.'
-
-## ============================
-Metadata:
-  AWS::CloudFormation::Interface:
-    ParameterGroups:
-      - Label:
-          default: 'Lambda Parameters'
-        Parameters:          
-        - pLambdaName
-        - pRDSType
-        - pDBEndPoint
-        - pRDSPOrt
-
-      - Label:
-          default: 'VPC input for Lambda'
-        Parameters: 
-        - pVPCid         
-        - pSubnetsGroup
-        - pSecurityGroup
-        
-
-    ParameterLabels: 
-      pRDSType:
-        default: "Select RDS Type"
-      pDBEndPoint:
-        default: "Enter (Amazon Aurora/Amazon RDS/Amazon RDS Proxy) Endpoint"
-      pRDSPOrt:
-        default: "Enter RDS Port"
-      pLambdaName: 
-        default: "Enter Lambda Function Name"
-      pVPCid:
-        default: "Select VPC from the list"
-      pSubnetsGroup: 
-        default: "Select Subnets"
-      pSecurityGroup: 
-        default: "Select Security Group for Lambda"
-      pTargetRoleARN:
-        default: "Provide Role ARN of target Account/VPC"
-        
-        
+Description: ''
 ## ============================
 ## ==== Parameter Assignment===
-
 Parameters:
-  pVPCid:
-    Type: List<AWS::EC2::VPC::Id>   
-  pSubnetsGroup:
-    Type: List<AWS::EC2::Subnet::Id>      
-  pSecurityGroup:
-    Type: AWS::EC2::SecurityGroup::Id
-  pTargetRoleARN:
+  awsAcct:
     Type: String
-    MinLength: '1'
-    MaxLength: '256'
+    Description: "AWS Account Number"
+    Default: "335594817550"
+
+  pVPCid:
+    Type: String
+    Description: "VPC Id"
+    Default: "vpc-064adfdf4fc98a417"
+
+  pSubnetsGroup:
+    Type: CommaDelimitedList
+    Description: "Subnet Id for PrivateSubnet0"
+    Default: "subnet-001b5c60c3618121c, subnet-0d661cb50f5ece38d"
+        
+  pSecurityGroup:
+    Type: String
+    Description: "Inbound access on Postgres from Deere internal network"
+    Default: "sg-007a1675e982420b9"
 
   pRDSType:
     AllowedValues:
@@ -73,6 +37,8 @@ Parameters:
     MaxLength: '128'
     AllowedPattern: '^[a-zA-Z]+[0-9a-zA-Z\-]*$'
 
+  ###### Env Var for lambda function need to put DB end point and NLB TG arn #####
+
   pRDSPOrt:
     Type: Number
     Default: 5432
@@ -81,62 +47,17 @@ Parameters:
 
   pDBEndPoint: 
     Type: String
+    Default: "database-1.c9dmc1iavuno.us-east-1.rds.amazonaws.com"
     MinLength: '1'
     MaxLength: '128'
 
   # rNetworkLoadBalancerTargetGroup:
   #    Type: String
-  #    Default: "arn:aws:elasticloadbalancing:us-east-1:456269942226:targetgroup/NLB-TG-RDS-resrstacjk/f44f72d1274ef593"
+  #    Default: ""
 
-
-
-   
 ## =====================================
 ##======================================
 Resources:
-
-## ==== IAM Role for S3 Buket access 
- rLambdaPrivsRole:
-   Type: AWS::IAM::Role
-   Properties:
-     AssumeRolePolicyDocument:
-       Version: '2012-10-17'
-       Statement:
-       - Effect: Allow
-         Principal:
-           Service:
-           - lambda.amazonaws.com
-         Action:
-         - sts:AssumeRole
-     Path: "/"
-     Policies:
-       - PolicyName: !Sub 'UpdateNLBIpPolicy${AWS::StackName}'
-         PolicyDocument:
-           Version: '2012-10-17'
-           Statement:
-           - Effect: Allow
-             Action:
-             - ec2:CreateNetworkInterface 
-             - ec2:DeleteNetworkInterface 
-             - ec2:DescribeNetworkInterfaces
-             - elasticloadbalancing:DescribeTargetHealth
-             - elasticloadbalancing:DeregisterTargets
-             - elasticloadbalancing:RegisterTargets
-             Resource: "*"
-           - Effect: Allow
-             Action:
-             - logs:CreateLogGroup
-             Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*'
-           - Effect: Allow
-             Action:
-             - logs:CreateLogStream
-             - logs:PutLogEvents
-             Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${pLambdaName}:*'
-     ManagedPolicyArns:
-       - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-     RoleName: !Sub "UpdateNLBIpRole-${AWS::StackName}"
-    
-
 ## ======= Create lambda ==========
  rLambdaNLBUpdate:
    Type: AWS::Lambda::Function
@@ -151,7 +72,7 @@ Resources:
                       - '-'
                       - !Sub ${AWS::StackName}
      Runtime: python3.9
-     Role: !GetAtt rLambdaPrivsRole.Arn
+     Role: !Join [":", ["arn:aws:iam:" , !Ref awsAcct , "role/UpdateNLBIpRole-demonewstack"]]
      Handler: index.lambda_handler
      Environment:
        Variables: 
@@ -240,7 +161,6 @@ Resources:
                 if vOldIp in DeRegisterIP:
                     print('DeRegister IP: ', vOldIp, 'Port; ', vOldPort, 'AZ: ', vOldAZ)
                     deregister_oldip(vOldIp, vOldPort, vOldAZ)
-                    print('End of the code ')
 
      Description: "Lambda function to update NLB target group IP address"
      TracingConfig:
@@ -342,28 +262,9 @@ Resources:
      LoadBalancerArn: !Ref rNetworkLoadBalancer
      Port: !Ref pRDSPOrt
      Protocol: TCP
-     
- rVPCEndpointService:    
-   Type: AWS::EC2::VPCEndpointService
-   Properties: 
-     AcceptanceRequired: no
-     NetworkLoadBalancerArns: 
-       - !Ref rNetworkLoadBalancer 
-        
- rVPCEndpointServicePermission:  
-   Type: AWS::EC2::VPCEndpointServicePermissions
-   Properties: 
-     AllowedPrincipals: 
-       - !Ref pTargetRoleARN
-     ServiceId: !Ref rVPCEndpointService        
-      
-# Output Section
-# ========================
-Outputs:
 
-  oLambdaPrivsRole:
-    Description: 'Role for Lambda function'
-    Value: !Ref rLambdaPrivsRole         
+
+Outputs:
 
   oLambdaName:
     Description: 'Lambda function name'
@@ -379,16 +280,12 @@ Outputs:
  
   oLambdaTriggerSubscription:
     Description: 'SNS Topic subscription'
-    Value: !Ref rLambdaTriggerSubscription         
+    Value: !Ref rLambdaTriggerSubscription
 
   oEventSubscription:
     Description: 'RDS Event subscription'
-    Value: !Ref rEventSubscription         
+    Value: !Ref rEventSubscription
 
   oSnsLambdaInvokePermission:
     Description: 'Lambda Invoke Permission'
-    Value: !Ref rSnsLambdaInvokePermission 
-    
-  # oVPCEndpointService:
-  #   Description: 'VPC Endpoint Servie'
-  #   Value: !Ref rVPCEndpointService     
+    Value: !Ref rSnsLambdaInvokePermission
